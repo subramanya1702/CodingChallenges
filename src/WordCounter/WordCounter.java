@@ -1,4 +1,4 @@
-package WordCount;
+package WordCounter;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -9,44 +9,50 @@ import java.io.StringReader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Scanner;
 
-public class WordCountJava {
-    /**
-     * Options
-     * c = bytes in input
-     * l = lines in input
-     * w = words in input
-     * m = characters in input
-     */
-    private boolean c = false, l = false, w = false, m = false;
-    private long lineCount = 0, wordCount = 0, byteCount = 0;
+/**
+ * <p>
+ * A word counter tool that is modeled after the unix utility, `wc`. Ref: <a href="https://www.unix.com/man-page/hpux/1/wc/">https://www.unix.com/man-page/hpux/1/wc/</a>
+ * The tool accepts the following command line arguments
+ * </p>
+ * <p>
+ * Arguments:
+ * c = bytes in input
+ * l = lines in input
+ * w = words in input
+ * m = characters in input
+ * <p>
+ * Note: The arguments are case sensitive
+ * </p>
+ */
+public class WordCounter {
+    private final boolean printBytes;
+    private final boolean printLines;
+    private final boolean printWords;
+    private final boolean printCharacters;
+    private long bytes = 0;
+    private long lines = 0;
+    private long words = 0;
+    private long totalBytes = 0;
+    private long totalLines = 0;
+    private long totalWords = 0;
     private final List<String> fileNames;
 
-    public WordCountJava() {
-        fileNames = new ArrayList<>();
-    }
+    public WordCounter(final String args[]) {
+        this.fileNames = new ArrayList<>();
+        boolean c = false, l = false, w = false, m = false;
 
-    private void processArguments(String[] args) {
         for (String arg : args) {
-            arg = arg.toLowerCase(Locale.ROOT);
-
             if (arg.charAt(0) == '-') {
                 for (int index = 1; index < arg.length(); index++) {
                     char option = arg.charAt(index);
 
                     switch (option) {
-                        case 'c' -> {
-                            c = true;
-                            m = false; // Cancel out prior usage of m
-                        }
+                        case 'c' -> c = true;
                         case 'l' -> l = true;
                         case 'w' -> w = true;
-                        case 'm' -> {
-                            m = true;
-                            c = false; // Cancel out prior usage of c
-                        }
+                        case 'm' -> m = true;
                         default -> {
                             System.out.println("Invalid option: \"" + option + "\"");
                             System.exit(0);
@@ -57,21 +63,51 @@ public class WordCountJava {
                 fileNames.add(arg);
             }
         }
+
+        if (c && m) {
+            System.out.println("Invalid options: You can only use either `c` or `m` and not both");
+            System.exit(0);
+        }
+
+        // If no options are passed, count all of them - c, l and w
+        if (!(c || l || w || m)) {
+            this.printBytes = true;
+            this.printLines = true;
+            this.printWords = true;
+            this.printCharacters = false;
+        } else {
+            this.printBytes = c;
+            this.printLines = l;
+            this.printWords = w;
+            this.printCharacters = m;
+        }
+    }
+
+    private void resetCounters() {
+        bytes = 0;
+        lines = 0;
+        words = 0;
+    }
+
+    private void incrementTotalCounters() {
+        totalBytes += bytes;
+        totalLines += lines;
+        totalWords += words;
     }
 
     private void printToStdOut(String fileName) {
         StringBuilder builder = new StringBuilder();
 
-        if (l) {
-            builder.append(lineCount).append(" ");
+        if (printLines) {
+            builder.append(lines).append(" ");
         }
 
-        if (w) {
-            builder.append(wordCount).append(" ");
+        if (printWords) {
+            builder.append(words).append(" ");
         }
 
-        if (c || m) {
-            builder.append(byteCount).append(" ");
+        if (printBytes || printCharacters) {
+            builder.append(bytes).append(" ");
         }
 
         builder.append(fileName);
@@ -81,14 +117,14 @@ public class WordCountJava {
 
     private void countFileSize(String filePath) {
         File file = new File(filePath);
-        byteCount = file.length();
+        bytes = file.length();
     }
 
     private void countCharacters(BufferedReader br) throws IOException {
         int character = br.read();
 
         while (character != -1) {
-            byteCount++;
+            bytes++;
             character = br.read();
         }
     }
@@ -104,20 +140,20 @@ public class WordCountJava {
         while (charInt != -1) {
             while (charInt != -1 && Character.isWhitespace(character)) {
                 if (previous != '\r' && (character == '\n' || character == '\r')) {
-                    lineCount++;
+                    lines++;
                 }
 
-                byteCount++;
+                bytes++;
                 charInt = br.read();
                 previous = character;
                 character = (char) charInt;
             }
 
             if (charInt != -1) {
-                wordCount++;
+                words++;
 
                 while (charInt != -1 && !Character.isWhitespace(character)) {
-                    byteCount++;
+                    bytes++;
                     charInt = br.read();
                     previous = character;
                     character = (char) charInt;
@@ -133,7 +169,7 @@ public class WordCountJava {
         String line = br.readLine();
 
         while (line != null) {
-            lineCount++;
+            lines++;
             line = br.readLine();
         }
     }
@@ -154,7 +190,7 @@ public class WordCountJava {
                 }
 
                 if (index < lineLength) {
-                    wordCount++;
+                    words++;
 
                     while (index < lineLength && !Character.isWhitespace(line.charAt(index))) {
                         index++;
@@ -162,26 +198,27 @@ public class WordCountJava {
                 }
             }
 
-            lineCount++;
+            lines++;
             line = br.readLine();
         }
     }
 
     private void process(String fileName, BufferedReader br) throws IOException {
-        if (l || w || m) {
-            if (m) {
-                if (l || w) {
+        if (printLines || printWords || printCharacters) {
+            if (printCharacters) {
+                if (printLines || printWords) {
                     countCharactersAndOthers(br);
                 } else {
                     countCharacters(br);
                 }
-            } else if (l && !w) {
+            } else if (printLines && !printWords) {
                 countLines(br);
             } else {
                 countWordsWithLines(br);
             }
         }
 
+        incrementTotalCounters();
         printToStdOut(fileName);
     }
 
@@ -189,7 +226,9 @@ public class WordCountJava {
         String pwd = Path.of("").toAbsolutePath().toString();
         String filePath = pwd + "/" + fileName;
 
-        if (c) {
+        resetCounters();
+
+        if (printBytes) {
             countFileSize(filePath);
         }
 
@@ -201,8 +240,10 @@ public class WordCountJava {
     }
 
     private void processStdInput(String input) {
-        if (c) {
-            byteCount = input.getBytes().length;
+        resetCounters();
+
+        if (printBytes) {
+            bytes = input.getBytes().length;
         }
 
         try (Reader str = new StringReader(input);
@@ -213,17 +254,15 @@ public class WordCountJava {
         }
     }
 
-    private void start(String[] args) {
-        processArguments(args);
-
-        // If no options are passed, count all of them - c, l and w
-        if (!(c || l || w || m)) {
-            c = l = w = true;
-        }
-
+    private void start() {
         if (!fileNames.isEmpty()) {
             for (String fileName : fileNames) {
                 processFile(fileName);
+            }
+
+            // Print the total count only when there are more than 1 files
+            if (fileNames.size() > 1) {
+                System.out.println(totalLines + " " + totalWords + " " + totalBytes);
             }
         } else {
             Scanner scanner = new Scanner(System.in);
@@ -240,7 +279,7 @@ public class WordCountJava {
     }
 
     public static void main(String[] args) throws IOException {
-        WordCountJava wordCountJava = new WordCountJava();
-        wordCountJava.start(args);
+        WordCounter wordCounter = new WordCounter(args);
+        wordCounter.start();
     }
 }
